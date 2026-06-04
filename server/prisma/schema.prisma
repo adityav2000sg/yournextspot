@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Category {
+  restaurant
+  coffee
+  bar
+}
+
+enum Tier {
+  everyday_delight
+  thoughtful_treat
+  memorable_occasion
+  landmark_celebration
+  crown_jewel
+}
+
+model Spot {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  name          String
+  category      Category
+  cuisine       String?
+  price         String?
+  address       String?
+  area          String?
+  lat           Float?
+  lng           Float?
+  googleMapsUrl String?
+  ownerTier     Tier?
+  ownerScore    Float?
+  ownerVerdict  String?
+  notes         String?
+  wishlist      Boolean   @default(false)
+  needsReview   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  reviews       Review[]
+  saves         SavedSpot[]
+
+  @@index([category])
+  @@index([area])
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String?
+  createdAt   DateTime @default(now())
+  reviews     Review[]
+  saves       SavedSpot[]
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  spot        Spot     @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  spotId      String
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId      String?
+  authorName  String
+  score       Float
+  tier        Tier
+  verdict     String
+  wouldReturn Boolean  @default(true)
+  isSeed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([spotId])
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model SavedSpot {
+  id        String   @id @default(cuid())
+  spot      Spot     @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  spotId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([spotId, userId])
+  @@index([userId])
+  @@index([spotId])
+}

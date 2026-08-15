@@ -17,6 +17,7 @@ export interface Review {
   isSeed: boolean;
   createdAt: string;
   mine?: boolean;
+  authorId?: string | null;
 }
 
 export interface SpotPhoto {
@@ -27,6 +28,7 @@ export interface SpotPhoto {
   status: "pending" | "approved" | "rejected";
   createdAt: string;
   mine?: boolean;
+  authorId?: string | null;
 }
 
 export interface Spot {
@@ -106,6 +108,6 @@ export interface ConciergeResponse {
   mood: string;
   picks: ConciergePick[];
   spots: Spot[];
-  source: "claude" | "local" | "clarification";
+  source: "claude" | "local" | "offline" | "clarification";
   suggestions?: string[];
 }

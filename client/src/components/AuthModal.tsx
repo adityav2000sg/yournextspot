@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, apiStatus } from "../api";
 import { useAuth } from "../lib/auth";
 
 interface Props {
@@ -120,14 +120,15 @@ export default function AuthModal({ onClose }: Props) {
 
           <div className="relative">
               <p className="text-[10px] uppercase tracking-[0.24em] text-aqua sm:text-[11px] sm:tracking-[0.34em]">
-              Locker locked
+              {apiStatus.configured ? "Locker locked" : "Member access"}
             </p>
             <h2 id="locker-dialog-title" className="mt-3 max-w-sm text-[2.35rem] font-semibold leading-[0.95] tracking-[-0.03em] text-mist-100 sm:mt-4 sm:max-w-md sm:font-display sm:text-6xl sm:tracking-[-0.055em]">
               Keep the places worth remembering.
             </h2>
             <p className="mt-3 max-w-sm text-sm leading-6 text-mist-300 sm:mt-5 sm:max-w-md sm:text-base sm:leading-7">
-              Sign in with one email code. No password, no account ceremony.
-                Just your saved spots, verdicts, and a cleaner way to decide next time.
+              {apiStatus.configured
+                ? "Sign in with one email code. No password, no account ceremony. Just your saved spots, verdicts, and a cleaner way to decide next time."
+                : "The public atlas is ready to browse. Personal lockers, reviews, and email sign-in need the live member service connected to this deployment."}
             </p>
           </div>
 
@@ -195,18 +196,24 @@ export default function AuthModal({ onClose }: Props) {
         </section>
 
         <section className="relative p-5 sm:p-9">
-          <div className="mb-5 flex items-center gap-2 sm:mb-7">
-            {["intro", "email", "code", "success"].map((s, index) => (
-              <span
-                key={s}
-                className={`h-1.5 flex-1 rounded-full transition ${
-                  ["intro", "email", "code", "success"].indexOf(step) >= index
-                    ? "bg-aqua"
-                    : "bg-white/10"
-                }`}
-              />
-            ))}
-          </div>
+          {apiStatus.configured ? (
+            <div className="mb-5 flex items-center gap-2 sm:mb-7">
+              {["intro", "email", "code", "success"].map((s, index) => (
+                <span
+                  key={s}
+                  className={`h-1.5 flex-1 rounded-full transition ${
+                    ["intro", "email", "code", "success"].indexOf(step) >= index
+                      ? "bg-aqua"
+                      : "bg-white/10"
+                  }`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="mb-5 rounded-full border border-gilt/20 bg-gilt/10 px-3 py-2 text-center text-[10px] uppercase tracking-[0.2em] text-gilt sm:mb-7">
+              Account service not connected
+            </div>
+          )}
 
           {step === "intro" && (
             <div className="animate-rise">
@@ -214,7 +221,7 @@ export default function AuthModal({ onClose }: Props) {
                 Why sign in
               </p>
               <h3 className="mt-2 text-2xl font-semibold leading-tight tracking-[-0.02em] text-mist-100 sm:font-display sm:text-4xl">
-                Turn the atlas into yours.
+                {apiStatus.configured ? "Turn the atlas into yours." : "Your Locker is the next connection."}
               </h3>
               <div className="mt-5 space-y-2.5 sm:mt-7 sm:space-y-3">
                 {benefits.map((b) => (
@@ -234,15 +241,24 @@ export default function AuthModal({ onClose }: Props) {
                   </div>
                 ))}
               </div>
-              <button
-                onClick={() => setStep("email")}
-                className="soft-button btn mt-5 w-full bg-mist-100 py-3 text-ink-900 hover:bg-white sm:mt-7 sm:py-4"
-              >
-                Unlock the Locker
-              </button>
-              <p className="mt-3 text-center text-xs text-mist-400">
-                One email code. No password.
-              </p>
+              {apiStatus.configured ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStep("email")}
+                    className="soft-button btn mt-5 w-full bg-mist-100 py-3 text-ink-900 hover:bg-white sm:mt-7 sm:py-4"
+                  >
+                    Unlock the Locker
+                  </button>
+                  <p className="mt-3 text-center text-xs text-mist-400">
+                    One email code. No password.
+                  </p>
+                </>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-6 text-mist-300 sm:mt-7">
+                  Browsing, maps, search, and quick picks still work. Saving, reviews, and email codes will appear here once the server, database, and email delivery are online.
+                </div>
+              )}
             </div>
           )}
 

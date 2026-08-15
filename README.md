@@ -6,9 +6,11 @@ YourNextSpot is a Singapore food, coffee, and bar decision app. The production d
 
 - **Quick pick**: a focused randomiser that respects current Singapore time and active filters.
 - **Concierge**: chat-like recommendations for specific briefs. Vague greetings ask for clarification instead of returning random picks.
+- **Voice-first mobile entry**: a tap-to-speak orb with editable transcript, typed fallback, and a fast catalogue fallback if the AI service misses its response deadline.
 - **Atlas**: searchable, progressively loaded cards plus a clustered tap-friendly map and Google Maps links.
 - **Locker**: passwordless email OTP login, personal lockers, saved spots, and private visit entries.
 - **Real community contributions**: one editable public review per member/place, plus public or private member photo uploads. Private photo files are access-controlled, not only hidden in the UI.
+- **Safety foundation**: signed-in members can report public reviews and photos into a persistent moderation queue.
 - **Time-aware UI**: live Singapore time, meal/drinks context, good-now/better-later/hours-unverified chips. Exact opening hours are intentionally marked unverified because this dataset does not include verified opening-hours fields.
 
 Ratings and verdicts always come from real member reviews. The seed and static catalogue do not manufacture social proof.
@@ -23,6 +25,7 @@ Ratings and verdicts always come from real member reviews. The seed and static c
 | Concierge | Anthropic API when configured, local fallback when not |
 | Email | Resend OTP, with dev-console fallback |
 | Hosting | Netlify frontend + Railway API + Railway Postgres |
+| iOS foundation | Capacitor shell + native speech recognition |
 
 ```
 client/   React app
@@ -73,7 +76,7 @@ See [.env.example](.env.example) for local defaults.
 2. Add this repo as the backend service. `railway.json` builds with `npm run build` and starts with `npm start`.
 3. Set backend environment variables listed above.
 4. `npm start` runs `prisma migrate deploy` before launching the API.
-5. Seed once from the Railway shell after the first deploy:
+5. Seed from the Railway shell after the first deploy. The seed now upserts catalogue places and does not delete member data:
 
 ```bash
 npm run db:seed
@@ -92,3 +95,14 @@ npm run db:seed
 The catalogue has categories, cuisine, area, price, coordinates, guide tiers, and notes. Scores and verdicts are calculated only from member reviews. It does not currently have verified opening hours, websites, reservation URLs, source provenance, or live availability. UI copy should keep saying “hours not verified” until those fields exist in the dataset.
 
 Uploaded images are application data. Back up the database and the mounted upload Volume together; object storage is the recommended upgrade before a public launch.
+
+## iOS foundation
+
+The repository includes a Capacitor iOS project and a native speech-recognition bridge. After changing the web client, run:
+
+```bash
+npm run mobile:sync
+npm run mobile:open
+```
+
+Set `CLIENT_ORIGIN` to include the deployed web origin and `capacitor://localhost` before testing signed-in native builds. The release gates and App Store Connect checklist live in [docs/APP_STORE_READINESS.md](docs/APP_STORE_READINESS.md).

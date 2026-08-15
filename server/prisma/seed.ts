@@ -44,15 +44,6 @@ async function main() {
   const db = JSON.parse(fs.readFileSync(DATA, "utf8")) as { spots: RawSpot[] };
   const raw = db.spots;
 
-  console.log("Clearing existing data…");
-  await prisma.visitEntry.deleteMany();
-  await prisma.lockerSpot.deleteMany();
-  await prisma.locker.deleteMany();
-  await prisma.review.deleteMany();
-  await prisma.savedSpot.deleteMany();
-  await prisma.spot.deleteMany();
-  await prisma.otpCode.deleteMany();
-
   const usedSlugs = new Set<string>();
   let spotCount = 0;
 
@@ -65,8 +56,27 @@ async function main() {
     const isWishlist = Boolean(r.wishlist) || !r.tier;
     const tier = r.tier ?? null;
 
-    const spot = await prisma.spot.create({
-      data: {
+    await prisma.spot.upsert({
+      where: { slug },
+      update: {
+        name: r.name,
+        category: r.category,
+        cuisine: r.cuisine ?? null,
+        price: r.price ?? null,
+        address: r.address ?? null,
+        area: r.area ?? null,
+        lat: typeof r.lat === "number" ? r.lat : null,
+        lng: typeof r.lng === "number" ? r.lng : null,
+        googleMapsUrl: googleMapsUrl(r.name, r.address),
+        ownerTier: tier,
+        ownerScore: null,
+        ownerVerdict: null,
+        notes: r.notes ?? null,
+        wishlist: isWishlist,
+        needsReview: Boolean(r.needsReview),
+        coverImageUrl: r.coverImageUrl ?? null,
+      },
+      create: {
         slug,
         name: r.name,
         category: r.category,
@@ -86,10 +96,10 @@ async function main() {
         coverImageUrl: r.coverImageUrl ?? null,
       },
     });
-    spotCount++;
+    spotCount += 1;
   }
 
-  console.log(`Seeded ${spotCount} spots. Reviews begin empty and are created by members.`);
+  console.log(`Upserted ${spotCount} spots without deleting member data.`);
 }
 
 main()

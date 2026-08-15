@@ -30,7 +30,13 @@ function isLowIntentPrompt(value: string) {
   return words.length === 0 || (words.length <= 2 && words.every((word) => lowIntent.has(word)));
 }
 
-export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
+interface Props {
+  onSignIn: () => void;
+  onVoiceOpen?: () => void;
+  voiceRequest?: { id: number; prompt: string } | null;
+}
+
+export default function Concierge({ onSignIn, onVoiceOpen, voiceRequest }: Props) {
   const [prompt, setPrompt] = useState("");
   const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,6 +44,9 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestIdRef = useRef(0);
+  const lastPickSlugsRef = useRef<string[]>([]);
+  const handledVoiceRequestRef = useRef(0);
   const timeContext = useSingaporeClock();
 
   useEffect(() => {
@@ -49,10 +58,19 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
     return () => clearInterval(t);
   }, [focused, prompt]);
 
+  useEffect(() => {
+    if (!voiceRequest || voiceRequest.id === handledVoiceRequestRef.current) return;
+    handledVoiceRequestRef.current = voiceRequest.id;
+    setPrompt(voiceRequest.prompt);
+    void ask(voiceRequest.prompt);
+  }, [voiceRequest]);
+
   async function ask(q: string) {
     const query = q.trim();
-    if (!query || loading) return;
+    if (!query) return;
+    const requestId = ++requestIdRef.current;
     if (isLowIntentPrompt(query)) {
+      setLoading(false);
       setError(null);
       setResult({
         mood: "What kind of spot do you need: coffee, dinner, drinks, date, client, budget, or area?",
@@ -73,12 +91,15 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
     setError(null);
     setResult(null);
     try {
-      const res = await api.concierge(query);
+      const res = await api.concierge(query, lastPickSlugsRef.current);
+      if (requestId !== requestIdRef.current) return;
+      lastPickSlugsRef.current = res.spots.map((spot) => spot.slug);
       setResult(res);
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }
 
@@ -88,10 +109,12 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
     : SUGGESTIONS;
   const sourceLabel =
     result?.source === "claude"
-      ? "Matched from your atlas"
+      ? "AI concierge · matched from your atlas"
       : result?.source === "local"
-        ? "Matched locally from your atlas"
-        : "Needs one more constraint";
+        ? "Smart match from your atlas"
+        : result?.source === "offline"
+          ? "Quick match · AI not connected"
+          : "Needs one more constraint";
   const rankedSpots =
     result && hasPicks
       ? result.picks
@@ -115,14 +138,26 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
           className="concierge-surface relative grid gap-4 rounded-[27px] p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:px-5"
         >
           <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <span
-            className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.055] text-xl text-aqua transition-transform ${
-              loading ? "animate-breathe" : ""
-            }`}
-            aria-hidden
-          >
-            ⌕
-          </span>
+          {onVoiceOpen ? (
+            <button
+              type="button"
+              onClick={onVoiceOpen}
+              className={`concierge-mic grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.055] text-aqua transition-transform ${
+                loading ? "animate-breathe" : ""
+              }`}
+              aria-label="Describe your request by voice"
+              title="Speak your request"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M12 15.5a3.75 3.75 0 0 0 3.75-3.75v-5a3.75 3.75 0 1 0-7.5 0v5A3.75 3.75 0 0 0 12 15.5Z" />
+                <path d="M5.75 11.25v.5a6.25 6.25 0 0 0 12.5 0v-.5M12 18v3M9.25 21h5.5" />
+              </svg>
+            </button>
+          ) : (
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.055] text-xl text-aqua" aria-hidden>
+              ⌕
+            </span>
+          )}
 
           <div className="min-w-0">
             <div className="mb-1 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-mist-400">
@@ -134,11 +169,16 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
               value={prompt}
               onChange={(e) => {
                 const next = e.target.value;
+                requestIdRef.current += 1;
                 setPrompt(next);
-                if (!next.trim()) {
-                  setResult(null);
-                  setError(null);
-                }
+                setLoading(false);
+                setResult(null);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                e.preventDefault();
+                void ask(e.currentTarget.value);
               }}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
@@ -163,6 +203,7 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
         <div className="mt-4 flex flex-wrap gap-2">
           {SUGGESTIONS.map((s) => (
             <button
+              type="button"
               key={s}
               onClick={() => {
                 setPrompt(s);
@@ -194,7 +235,7 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
       )}
 
       {result && (
-        <div className="mt-6 animate-rise">
+        <div className="mt-6 animate-rise" aria-live="polite">
           <div className="result-panel">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -202,16 +243,25 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
                   {sourceLabel}
                 </p>
                 <p className="mt-2 font-display text-2xl leading-tight text-mist-100">
-                  "{result.mood}"
+                  {result.mood}
                 </p>
+                {result.source === "offline" && (
+                  <p className="mt-2 max-w-2xl text-xs leading-5 text-gilt/85">
+                    This is a fast catalogue match. Conversational recommendations will switch on when the live service is connected.
+                  </p>
+                )}
                 <p className="mt-2 text-xs text-mist-400">
                   {timeContext.timeLabel} SGT · {timeContext.modeLabel} · hours not verified
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => {
+                  requestIdRef.current += 1;
+                  lastPickSlugsRef.current = [];
                   setResult(null);
                   setPrompt("");
+                  setLoading(false);
                   inputRef.current?.focus();
                 }}
                 className="btn-ghost w-max shrink-0 border border-white/10 text-xs"
@@ -245,6 +295,7 @@ export default function Concierge({ onSignIn }: { onSignIn: () => void }) {
                 <div className="mt-4 flex flex-wrap gap-2">
                   {resultSuggestions.map((s) => (
                     <button
+                      type="button"
                       key={s}
                       onClick={() => {
                         setPrompt(s);

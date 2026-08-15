@@ -39,7 +39,7 @@ This is the next launch, before thinking about the App Store.
 
 ### Trust and safety
 
-- Add a pre-publication text/image filter, report buttons on every public review and photo, a moderation queue, response targets, and the ability for members to block another member.
+- Add a pre-publication text/image filter, response targets, an admin view for the new report queue, and a Profile view for undoing blocks. Reporting and member blocking are now in place.
 - Add clear community guidelines and a support workflow.
 - Keep public and private contributions visually distinct everywhere.
 - Add virus/image validation and server-side image processing; the current browser resize is useful but cannot be the only protection.
@@ -88,9 +88,9 @@ Estimated solo build effort: roughly another 25–45 focused development days, w
 
 ## Gate 3 — App Store
 
-First prove the family beta as a polished mobile web product. Then choose the client strategy:
+The Capacitor route is now scaffolded with a native speech-recognition bridge. Prove the family beta as a polished mobile product before investing in deeper native integrations:
 
-- **Fastest:** a Capacitor-style native shell around the existing React app. Reuses more code, but it must still feel native and provide more than a repackaged website.
+- **Current:** the Capacitor iOS shell reuses the React product and adds native speech input. It still needs real-device testing and additional native value before review.
 - **Best long-term iPhone product:** an Expo/React Native client backed by the existing API. More work, but a better base for camera capture, push notifications, location, deep links, share sheets, and native navigation.
 
 The recommended path is the native client after the family beta demonstrates repeat use. Keep the API, data model, moderation system, and product rules; replace the presentation layer gradually.

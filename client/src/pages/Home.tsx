@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { api, type SpotQuery } from "../api";
 import type { Category, Spot, Tier } from "../types";
 import Concierge from "../components/Concierge";
+import VoiceConcierge from "../components/VoiceConcierge";
 import Filters from "../components/Filters";
 import SpotCard from "../components/SpotCard";
 import DecideOverlay from "../components/DecideOverlay";
@@ -62,7 +63,20 @@ export default function Home({ onSignIn }: { onSignIn: () => void }) {
   const [decideOpen, setDecideOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceRequest, setVoiceRequest] = useState<{ id: number; prompt: string } | null>(null);
   const timeContext = useSingaporeClock();
+
+  useEffect(() => {
+    const isMobile = window.matchMedia("(max-width: 680px)").matches;
+    const sessionKey = "yns.voiceWelcomeSeen";
+    if (!isMobile || window.sessionStorage.getItem(sessionKey)) return;
+    const timer = window.setTimeout(() => {
+      window.sessionStorage.setItem(sessionKey, "1");
+      setVoiceOpen(true);
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     api.areas().then(setAreas).catch(() => setAreas([]));
@@ -145,14 +159,18 @@ export default function Home({ onSignIn }: { onSignIn: () => void }) {
             Tell us the mood, or trust a quick pull. Every result comes from one shared Singapore list—not an endless search page.
           </p>
 
-          <div className="mt-6">
-            <Concierge onSignIn={onSignIn} />
+          <div id="concierge" className="mt-6 scroll-mt-24">
+            <Concierge
+              onSignIn={onSignIn}
+              onVoiceOpen={() => setVoiceOpen(true)}
+              voiceRequest={voiceRequest}
+            />
           </div>
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
             <button type="button" onClick={() => setDecideOpen(true)} className="btn-primary min-h-[54px] sm:min-w-[220px]">
               <span aria-hidden>↯</span>
-              {activeFilterCount ? "Choose from my filters" : "Surprise me"}
+              {activeFilterCount ? "Pick from these filters" : "Pick one for me"}
             </button>
             <a href="#atlas" className="btn-secondary min-h-[54px]">Explore all places</a>
             <p className="text-xs leading-5 text-mist-400 sm:max-w-[220px]">
@@ -306,6 +324,34 @@ export default function Home({ onSignIn }: { onSignIn: () => void }) {
           }}
         />
       )}
+
+      <button
+        type="button"
+        className="voice-fab"
+        onClick={() => setVoiceOpen(true)}
+        aria-label="Open voice concierge"
+      >
+        <span aria-hidden>
+          <svg viewBox="0 0 24 24">
+            <path d="M12 15.5a3.75 3.75 0 0 0 3.75-3.75v-5a3.75 3.75 0 1 0-7.5 0v5A3.75 3.75 0 0 0 12 15.5Z" />
+            <path d="M5.75 11.25v.5a6.25 6.25 0 0 0 12.5 0v-.5M12 18v3M9.25 21h5.5" />
+          </svg>
+        </span>
+        Ask
+      </button>
+
+      <VoiceConcierge
+        open={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onSubmit={(prompt) => {
+          setVoiceRequest({ id: Date.now(), prompt });
+          window.setTimeout(
+            () => document.getElementById("concierge")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+            80
+          );
+        }}
+        onBrowse={() => document.getElementById("atlas")?.scrollIntoView({ behavior: "smooth" })}
+      />
     </main>
   );
 }

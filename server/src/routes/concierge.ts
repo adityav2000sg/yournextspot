@@ -8,7 +8,10 @@ import type { SpotWithReviews } from "../lib/serialize.js";
 
 export const conciergeRouter = Router();
 
-const promptSchema = z.object({ prompt: z.string().trim().min(1).max(400) });
+const promptSchema = z.object({
+  prompt: z.string().trim().min(1).max(400),
+  excludeSlugs: z.array(z.string().trim().min(1).max(120)).max(12).optional().default([]),
+});
 
 const anthropic = hasClaude
   ? new Anthropic({ apiKey: env.anthropicApiKey })
@@ -46,7 +49,7 @@ conciergeRouter.post("/", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Tell me a little more." });
   }
-  const prompt = parsed.data.prompt;
+  const { prompt, excludeSlugs } = parsed.data;
 
   const spots = await prisma.spot.findMany({ include: { reviews: true } });
   const bySlug = new Map(spots.map((s) => [s.slug, s]));
@@ -58,7 +61,7 @@ conciergeRouter.post("/", async (req, res) => {
 
     if (anthropic) {
       try {
-        const result = await askClaude(prompt, spots);
+        const result = await askClaude(prompt, spots, excludeSlugs);
         mood = ensureClarificationMood(result.mood);
         source = "claude";
       } catch (err) {
@@ -81,7 +84,7 @@ conciergeRouter.post("/", async (req, res) => {
 
   if (anthropic) {
     try {
-      const result = await askClaude(prompt, spots);
+      const result = await askClaude(prompt, spots, excludeSlugs);
       mood = result.mood;
       picks = result.picks.filter((p) => bySlug.has(p.slug));
       if (picks.length > 0) source = "claude";
@@ -91,7 +94,7 @@ conciergeRouter.post("/", async (req, res) => {
   }
 
   if (picks.length === 0) {
-    const local = localMatch(prompt, spots);
+    const local = localMatch(prompt, spots, excludeSlugs);
     mood = mood || local.mood;
     picks = local.picks;
     source = "local";
@@ -107,7 +110,8 @@ conciergeRouter.post("/", async (req, res) => {
 
 async function askClaude(
   prompt: string,
-  spots: SpotWithReviews[]
+  spots: SpotWithReviews[],
+  excludeSlugs: string[]
 ): Promise<{ mood: string; picks: Pick[] }> {
   const catalog = spots.map(compactForConcierge);
   const system = `You are YourNextSpot's private Singapore F&B concierge.
@@ -128,7 +132,9 @@ Decision rules:
 - Hard-respect category intent: coffee/cafe/laptop/study => coffee; drinks/cocktails/bar/nightcap => bar; dinner/lunch/eat/date/client => restaurant unless user says otherwise.
 - Hard-respect price intent: cheap/budget/casual/value => prefer $ or $$; splurge/impress/celebrate/client => prefer memorable_occasion, landmark_celebration, or crown_jewel.
 - New/haven't tried/bucket list => prefer wishlist=true.
+- Never return a slug from the excluded-slugs list. These are results the user has just seen.
 - If the user names an area, prefer that area.
+- The catalog does not contain verified live opening hours. Never claim a place is open now; say hours must be confirmed when requested.
 - Avoid generic praise. Reasons should say WHY the pick fits this request.
 
 Voice:
@@ -151,7 +157,7 @@ Use only slugs present in the catalog.`;
     messages: [
       {
         role: "user",
-        content: `User request: "${prompt}"\n\nCatalog JSON:\n${JSON.stringify(
+        content: `User request: "${prompt}"\nExcluded slugs: ${JSON.stringify(excludeSlugs)}\n\nCatalog JSON:\n${JSON.stringify(
           catalog
         )}\n\nReturn only the JSON object.`,
       },
@@ -253,31 +259,48 @@ function ensureClarificationMood(mood: string): string {
 // ---- Local fallback: a keyword/mood matcher so search always works ----
 function localMatch(
   prompt: string,
-  spots: SpotWithReviews[]
+  spots: SpotWithReviews[],
+  excludeSlugs: string[] = []
 ): { mood: string; picks: Pick[] } {
   const p = prompt.toLowerCase();
+  const excluded = new Set(excludeSlugs);
   const wants = {
     coffee: /(coffee|cafe|espresso|latte|laptop|work|study|matcha)/.test(p),
     bar: /(drink|cocktail|bar|wine|beer|night ?cap|booze|whisky)/.test(p),
     eat: /(eat|food|dinner|lunch|brunch|hungry|meal|pasta|dumpling|curry|steak)/.test(p),
+    date: /(date|girlfriend|boyfriend|partner|romantic|anniversary)/.test(p),
     cheap: /(cheap|budget|affordable|value|casual)/.test(p),
-    fancy: /(impress|fancy|celebrate|celebration|anniversary|birthday|promotion|special|date|romantic)/.test(p),
-    nuevo: /(new|haven'?t|never been|try|explore|adventur)/.test(p),
+    fancy: /(client|impress|fancy|splurge|celebrate|celebration|birthday|promotion|special)/.test(p),
+    nuevo: /(new|different|else|surprise|haven'?t|never been|try|explore|adventur)/.test(p),
     cozy: /(cozy|cosy|quiet|chill|relax|intimate|calm)/.test(p),
+    openNow: /(open now|open at|still open|opening hours?)/.test(p),
   };
 
   const area = spots
     .map((s) => s.area)
     .filter((a): a is string => Boolean(a))
-    .find((a) => p.includes(a.toLowerCase()));
+    .find((a) => p.includes(a.toLowerCase())) ??
+    (/\b(east coast|east side)\b/.test(p) ? "Katong" : undefined);
+
+  const categoryIntent = wants.coffee
+    ? "coffee"
+    : wants.bar
+      ? "bar"
+      : wants.eat
+        ? "restaurant"
+        : null;
 
   const scored = spots
     .map((s) => {
-      let score = 0;
-      if (wants.coffee && s.category === "coffee") score += 5;
-      if (wants.bar && s.category === "bar") score += 5;
-      if (wants.eat && s.category === "restaurant") score += 4;
+      let score = s.wishlist ? 1.2 : 2;
+      if (categoryIntent) score += s.category === categoryIntent ? 10 : -12;
       if (wants.cheap && (s.price === "$" || s.price === "$$")) score += 3;
+      if (
+        wants.date &&
+        (s.ownerTier === "memorable_occasion" || s.ownerTier === "thoughtful_treat")
+      )
+        score += s.ownerTier === "memorable_occasion" ? 5 : 3;
+      if (wants.coffee && wants.date && s.ownerTier === "thoughtful_treat") score += 3;
       if (
         wants.fancy &&
         (s.ownerTier === "landmark_celebration" ||
@@ -289,20 +312,47 @@ function localMatch(
       if (area && s.area === area) score += 4;
       if (s.cuisine && p.includes(s.cuisine.toLowerCase())) score += 4;
       if (p.includes(s.name.toLowerCase())) score += 6;
-      // Gentle bias toward rated, higher-scoring places.
       score += (s.ownerScore ?? 0) / 10;
-      score += Math.random() * 0.6; // a little serendipity
+      if (excluded.has(s.slug)) score -= 100;
+      score += stableNoise(`${p}:${s.slug}`) * 0.8;
       return { s, score };
     })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
+    .sort((a, b) => b.score - a.score);
+
+  const selected = categoryIntent
+    ? scored.slice(0, 3)
+    : selectDiverseServerPicks(scored, 3);
 
   const mood = buildLocalMood(wants, area);
-  const picks: Pick[] = scored.map(({ s }) => ({
+  const picks: Pick[] = selected.map(({ s }) => ({
     slug: s.slug,
     reason: localReason(s),
   }));
   return { mood, picks };
+}
+
+function stableNoise(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return ((hash >>> 0) % 1000) / 1000;
+}
+
+function selectDiverseServerPicks(
+  scored: { s: SpotWithReviews; score: number }[],
+  limit: number
+) {
+  const selected: typeof scored = [];
+  const categories = new Set<string>();
+  for (const candidate of scored) {
+    if (categories.has(candidate.s.category)) continue;
+    selected.push(candidate);
+    categories.add(candidate.s.category);
+    if (selected.length === limit) return selected;
+  }
+  return selected.concat(scored.filter((candidate) => !selected.includes(candidate))).slice(0, limit);
 }
 
 function buildLocalMood(

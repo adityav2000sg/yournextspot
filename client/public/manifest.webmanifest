@@ -1,0 +1,32 @@
+{
+  "name": "YourNextSpot",
+  "short_name": "NextSpot",
+  "description": "A voice-first Singapore food, coffee, and drinks concierge built from places people trust.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020410",
+  "theme_color": "#020410",
+  "categories": ["food", "lifestyle", "travel"],
+  "icons": [
+    {
+      "src": "/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

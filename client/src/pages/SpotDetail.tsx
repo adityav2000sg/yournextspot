@@ -11,6 +11,8 @@ import SaveSpotButton from "../components/SaveSpotButton";
 import VisitEntryPanel from "../components/VisitEntryPanel";
 import ReviewForm from "../components/ReviewForm";
 import PhotoGallery from "../components/PhotoGallery";
+import ReportButton from "../components/ReportButton";
+import BlockButton from "../components/BlockButton";
 import {
   chipClass,
   chooseAlternativeDetails,
@@ -65,6 +67,24 @@ export default function SpotDetail({ onSignIn }: Props) {
         : [review, ...previous];
       const avgScore = Math.round((reviews.reduce((sum, item) => sum + item.score, 0) / reviews.length) * 10) / 10;
       return { ...current, reviews, reviewCount: reviews.length, avgScore, communityTier: scoreToTier(avgScore) };
+    });
+  }
+
+  function hideBlockedMember(userId: string) {
+    setSpot((current) => {
+      if (!current) return current;
+      const reviews = (current.reviews ?? []).filter((review) => review.authorId !== userId);
+      const avgScore = reviews.length
+        ? Math.round((reviews.reduce((sum, review) => sum + review.score, 0) / reviews.length) * 10) / 10
+        : null;
+      return {
+        ...current,
+        reviews,
+        photos: (current.photos ?? []).filter((photo) => photo.authorId !== userId),
+        reviewCount: reviews.length,
+        avgScore,
+        communityTier: avgScore == null ? null : scoreToTier(avgScore),
+      };
     });
   }
 
@@ -175,6 +195,7 @@ export default function SpotDetail({ onSignIn }: Props) {
         signedIn={Boolean(user)}
         onSignIn={onSignIn}
         onChange={(photos) => setSpot((current) => current ? { ...current, photos } : current)}
+        onBlocked={hideBlockedMember}
       />
 
       {spot.lat != null && spot.lng != null && (
@@ -207,6 +228,12 @@ export default function SpotDetail({ onSignIn }: Props) {
                       <span className={`decision-chip ${review.wouldReturn ? "border-aqua/25 bg-aqua/10 text-aqua" : "border-ember/25 bg-ember/10 text-ember"}`}>
                         {review.wouldReturn ? "would return" : "one and done"}
                       </span>
+                      {!review.mine && (
+                        <span className="ml-auto flex items-center gap-3">
+                          <ReportButton targetType="review" targetId={review.id} signedIn={Boolean(user)} onSignIn={onSignIn} />
+                          {user && review.authorId && <BlockButton userId={review.authorId} onBlocked={hideBlockedMember} />}
+                        </span>
+                      )}
                     </div>
                   </li>
                 ))}

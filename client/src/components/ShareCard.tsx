@@ -76,7 +76,7 @@ export default function ShareCard({ spot, onClose }: Props) {
             </p>
             <h2
               className="mt-2 font-display text-5xl leading-[1.05]"
-              style={{ fontFamily: "Fraunces, serif" }}
+              style={{ fontFamily: "Open Sans, Inter, sans-serif" }}
             >
               {spot.name}
             </h2>

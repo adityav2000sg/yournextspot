@@ -11,14 +11,20 @@ export function issueToken(res: Response, payload: AuthPayload) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     secure: env.isProd,
-    sameSite: env.isProd ? "strict" : "lax",
+    // Netlify and Railway use different sites in production. SameSite=None keeps
+    // credentialed requests working there and in the Capacitor iOS shell.
+    sameSite: env.isProd ? "none" : "lax",
     maxAge: 30 * 24 * 60 * 60 * 1000,
     path: "/",
   });
 }
 
 export function clearToken(res: Response) {
-  res.clearCookie(COOKIE_NAME, { path: "/" });
+  res.clearCookie(COOKIE_NAME, {
+    path: "/",
+    secure: env.isProd,
+    sameSite: env.isProd ? "none" : "lax",
+  });
 }
 
 export function readToken(req: Request): AuthPayload | null {

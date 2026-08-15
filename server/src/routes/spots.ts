@@ -114,19 +114,33 @@ spotsRouter.get("/random", async (req, res) => {
 // GET /api/spots/:slug
 spotsRouter.get("/spots/:slug", async (req, res) => {
   const auth = readToken(req);
+  const blockedUserIds = auth
+    ? (await prisma.blockedUser.findMany({
+        where: { blockerId: auth.userId },
+        select: { blockedId: true },
+      })).map(({ blockedId }) => blockedId)
+    : [];
+  const visibleAuthor = blockedUserIds.length > 0
+    ? { OR: [{ userId: null }, { userId: { notIn: blockedUserIds } }] }
+    : undefined;
   const spot = await prisma.spot.findUnique({
     where: { slug: req.params.slug },
     include: {
-      reviews: true,
+      reviews: visibleAuthor ? { where: visibleAuthor } : true,
       photos: {
-        where: auth
-          ? {
-              OR: [
-                { visibility: "public", status: "approved" },
-                { userId: auth.userId },
-              ],
-            }
-          : { visibility: "public", status: "approved" },
+        where: {
+          AND: [
+            auth
+              ? {
+                  OR: [
+                    { visibility: "public", status: "approved" },
+                    { userId: auth.userId },
+                  ],
+                }
+              : { visibility: "public", status: "approved" },
+            ...(visibleAuthor ? [visibleAuthor] : []),
+          ],
+        },
         orderBy: { createdAt: "desc" },
       },
     },

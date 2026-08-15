@@ -37,6 +37,11 @@ authRouter.post("/request-otp", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Enter a valid email." });
   }
+  if (env.isProd && !hasEmail) {
+    return res.status(503).json({
+      error: "Email sign-in is temporarily unavailable.",
+    });
+  }
   const email = parsed.data.email.toLowerCase();
   const ip = req.ip || req.socket.remoteAddress || "unknown";
   if (!allowed(`otp-email:${email}`, 5, 60 * 60 * 1000) || !allowed(`otp-ip:${ip}`, 20, 60 * 60 * 1000)) {
@@ -57,8 +62,8 @@ authRouter.post("/request-otp", async (req, res) => {
   const { delivered } = await sendOtpEmail(email, code);
   res.json({
     delivered,
-    // In dev (no email provider) we surface the code so login still works.
-    devCode: hasEmail ? undefined : code,
+    // Local development can surface the code; production never returns it.
+    devCode: !env.isProd && !hasEmail ? code : undefined,
   });
 });
 

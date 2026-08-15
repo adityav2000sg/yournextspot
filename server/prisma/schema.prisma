@@ -21,6 +21,17 @@ enum Tier {
   crown_jewel
 }
 
+enum PhotoVisibility {
+  public
+  private
+}
+
+enum PhotoStatus {
+  pending
+  approved
+  rejected
+}
+
 model Spot {
   id            String    @id @default(cuid())
   slug          String    @unique
@@ -39,9 +50,13 @@ model Spot {
   notes         String?
   wishlist      Boolean   @default(false)
   needsReview   Boolean   @default(false)
+  coverImageUrl String?
   createdAt     DateTime  @default(now())
   reviews       Review[]
   saves         SavedSpot[]
+  lockerSpots   LockerSpot[]
+  visitEntries  VisitEntry[]
+  photos        SpotPhoto[]
 
   @@index([category])
   @@index([area])
@@ -51,9 +66,13 @@ model User {
   id          String   @id @default(cuid())
   email       String   @unique
   displayName String?
+  defaultLockersCreated Boolean @default(false)
   createdAt   DateTime @default(now())
   reviews     Review[]
   saves       SavedSpot[]
+  lockers     Locker[]
+  visitEntries VisitEntry[]
+  photos      SpotPhoto[]
 }
 
 model Review {
@@ -71,6 +90,7 @@ model Review {
   createdAt   DateTime @default(now())
 
   @@index([spotId])
+  @@unique([spotId, userId])
 }
 
 model OtpCode {
@@ -95,4 +115,66 @@ model SavedSpot {
   @@unique([spotId, userId])
   @@index([userId])
   @@index([spotId])
+}
+
+model Locker {
+  id          String       @id @default(cuid())
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  items       LockerSpot[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model LockerSpot {
+  id        String   @id @default(cuid())
+  locker    Locker   @relation(fields: [lockerId], references: [id], onDelete: Cascade)
+  lockerId  String
+  spot      Spot     @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  spotId    String
+  createdAt DateTime @default(now())
+
+  @@unique([lockerId, spotId])
+  @@index([lockerId])
+  @@index([spotId])
+}
+
+model VisitEntry {
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  spot         Spot     @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  spotId       String
+  visitDate    DateTime
+  rating       Float
+  note         String?
+  favoriteItem String?
+  companion    String?
+  wouldReturn  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([spotId])
+}
+
+model SpotPhoto {
+  id         String          @id @default(cuid())
+  spot       Spot            @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  spotId     String
+  user       User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId     String?
+  imageUrl   String
+  caption    String?
+  visibility PhotoVisibility @default(private)
+  status     PhotoStatus     @default(approved)
+  createdAt  DateTime        @default(now())
+
+  @@index([spotId, visibility, status])
+  @@index([userId])
 }

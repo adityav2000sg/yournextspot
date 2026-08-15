@@ -19,6 +19,9 @@ export const env = {
 
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
+
+  uploadDir: process.env.UPLOAD_DIR ?? path.resolve(__dirname, "../../uploads"),
+  publicMediaBase: (process.env.PUBLIC_MEDIA_BASE ?? "").replace(/\/$/, ""),
 };
 
 export const hasEmail = Boolean(env.resendApiKey);

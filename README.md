@@ -1,88 +1,94 @@
 # YourNextSpot
 
-A living atlas of where to eat, drink and sip in Singapore — built to erase decision fatigue.
+YourNextSpot is a Singapore food, coffee, and bar decision app. The production direction is a Netlify-hosted React frontend calling a Railway Express API backed by Railway Postgres and Resend OTP email.
 
-- **AI concierge** — a shimmering, "alive" search bar. Tell it how you feel ("cozy rainy-day date", "impress a client", "cheap eats near Joo Chiat") and Claude reads the mood and recommends from your own curated list.
-- **Decide-for-me roulette** — a one-tap randomiser (respects your filters) for pure serendipity.
-- **The five-tier "star system"** — instead of flat 1–5 stars, every spot sits on an occasion ladder: `Everyday Delight → Thoughtful Treat → Memorable Occasion → Landmark Celebration → Crown Jewel`, paired with a 0–10 Worth-It Score and a one-line verdict.
-- **Shareable cards** — generate a beautiful IG-story / LinkedIn card for any spot (the virality engine).
-- **The Locker** — passwordless email-OTP login so anyone can add their own reviews.
-- **Accurate map** — every spot is geocoded (OpenStreetMap) with a precise Google Maps deep link.
+## What It Does
+
+- **Quick pick**: a focused randomiser that respects current Singapore time and active filters.
+- **Concierge**: chat-like recommendations for specific briefs. Vague greetings ask for clarification instead of returning random picks.
+- **Atlas**: searchable, progressively loaded cards plus a clustered tap-friendly map and Google Maps links.
+- **Locker**: passwordless email OTP login, personal lockers, saved spots, and private visit entries.
+- **Real community contributions**: one editable public review per member/place, plus public or private member photo uploads. Private photo files are access-controlled, not only hidden in the UI.
+- **Time-aware UI**: live Singapore time, meal/drinks context, good-now/better-later/hours-unverified chips. Exact opening hours are intentionally marked unverified because this dataset does not include verified opening-hours fields.
+
+Ratings and verdicts always come from real member reviews. The seed and static catalogue do not manufacture social proof.
 
 ## Stack
 
-| Layer    | Tech                                                        |
-| -------- | ----------------------------------------------------------- |
-| Frontend | React + Vite + TypeScript + Tailwind, Leaflet map           |
-| Backend  | Express + TypeScript, JWT (httpOnly cookie) auth            |
-| Data     | PostgreSQL via Prisma                                        |
-| AI       | Anthropic Claude (`@anthropic-ai/sdk`) with a local fallback |
-| Email    | Resend (with a dev console fallback)                        |
-| Hosting  | Railway (one service + Postgres plugin)                     |
+| Layer | Tech |
+| --- | --- |
+| Frontend | React + Vite + TypeScript + Tailwind, Leaflet map |
+| Backend | Express + TypeScript, JWT httpOnly cookie auth |
+| Data | PostgreSQL via Prisma |
+| Concierge | Anthropic API when configured, local fallback when not |
+| Email | Resend OTP, with dev-console fallback |
+| Hosting | Netlify frontend + Railway API + Railway Postgres |
 
 ```
-client/   React app (home, concierge, map, spot detail, share cards)
-server/   Express API (spots, reviews, randomize, auth, concierge)
-data/     spots.seed.json — the geocoded source of truth
-scripts/  geocode.mjs — one-time coordinate enrichment
+client/   React app
+server/   Express API, Prisma schema, migrations, seed
+data/     spots.seed.json
+scripts/  geocode helper
 ```
 
-## Local development
+## Local Development
 
-Prerequisites: Node 20+, a local PostgreSQL.
+Prerequisites: Node 20+ and PostgreSQL.
 
 ```bash
-# 1. install (also generates the Prisma client)
 npm install
-
-# 2. configure env (a local .env is already provided; adjust DATABASE_URL if needed)
-#    DATABASE_URL="postgresql://USER@localhost:5432/yournextspot?schema=public"
-
-# 3. create schema + seed spots and demo reviews
 npm run db:migrate
 npm run db:seed
-
-# 4. run both client (5173) and server (8080)
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open `http://localhost:5173`.
 
-### Optional: turn the features fully "live"
+If Postgres is not on the default local URL, update `DATABASE_URL` before running migrations.
 
-Everything works out of the box with sensible fallbacks. To go live:
+## Environment
 
-- **Claude concierge** — set `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`). Without it, a local keyword/mood matcher is used so search always returns picks.
-- **Email OTP** — set `RESEND_API_KEY` and a verified `OTP_FROM_EMAIL`. Without it, the one-time code prints to the server console and is surfaced in the login modal (dev mode).
+Backend/Railway:
 
-## Refreshing coordinates
+- `DATABASE_URL`: Railway Postgres provides this automatically.
+- `JWT_SECRET`: long random string.
+- `NODE_ENV=production`
+- `CLIENT_ORIGIN`: comma-separated allowed frontend origins, for example `https://your-site.netlify.app`.
+- `RESEND_API_KEY` and `OTP_FROM_EMAIL`: required for live OTP email. If unset, dev mode surfaces the code locally.
+- `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`: optional concierge provider. Without them, local matching still works.
+- `UPLOAD_DIR`: durable photo directory. In Railway, mount a Volume and point this at its mount path.
+- `PUBLIC_MEDIA_BASE`: public API origin used to construct uploaded-photo URLs.
 
-`data/spots.seed.json` already contains baked-in `lat`/`lng`. To re-geocode (e.g. after adding spots), run:
+Frontend/Netlify:
+
+- `VITE_API_BASE`: Railway API base path, for example `https://your-api.up.railway.app/api`.
+
+See [.env.example](.env.example) for local defaults.
+
+## Deploy
+
+### Railway API
+
+1. Create a Railway project with the Postgres plugin.
+2. Add this repo as the backend service. `railway.json` builds with `npm run build` and starts with `npm start`.
+3. Set backend environment variables listed above.
+4. `npm start` runs `prisma migrate deploy` before launching the API.
+5. Seed once from the Railway shell after the first deploy:
 
 ```bash
-node scripts/geocode.mjs   # resumable; only fills spots missing coordinates
-npm run db:seed            # reload into the database
+npm run db:seed
 ```
 
-## Deploy to Railway
+### Netlify Frontend
 
-1. Create a Railway project and add the **PostgreSQL** plugin (it sets `DATABASE_URL` automatically).
-2. Add the service from this repo. `railway.json` configures the build (`npm run build`) and start (`npm start`).
-3. Set environment variables on the service:
-   - `JWT_SECRET` (long random string)
-   - `NODE_ENV=production`
-   - `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (optional, for live Claude)
-   - `RESEND_API_KEY`, `OTP_FROM_EMAIL` (optional, for live email)
-4. On boot, `npm start` runs `prisma migrate deploy` then starts the server (which also serves the built client).
-5. Seed once from the Railway shell:
-   ```bash
-   npm run db:seed
-   ```
+1. Connect the same repo to Netlify.
+2. Build command: `npm run build -w client`
+3. Publish directory: `client/dist`
+4. Set `VITE_API_BASE` to the Railway API `/api` URL.
+5. Keep `netlify.toml`; it provides the static route fallback for React Router.
 
-## Environment variables
+## Data Notes
 
-See [.env.example](.env.example) for the full list and defaults.
+The catalogue has categories, cuisine, area, price, coordinates, guide tiers, and notes. Scores and verdicts are calculated only from member reviews. It does not currently have verified opening hours, websites, reservation URLs, source provenance, or live availability. UI copy should keep saying “hours not verified” until those fields exist in the dataset.
 
-## Roadmap ideas
-
-Passport / year-in-review "Wrapped", "near me" distance sorting, friends' reviews via the Locker, a weekly "Spot of the Week" email, and turning the name-only entries into a shared bucket list.
+Uploaded images are application data. Back up the database and the mounted upload Volume together; object storage is the recommended upgrade before a public launch.

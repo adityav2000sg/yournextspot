@@ -5,14 +5,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import { env, hasClaude, hasEmail } from "./env.js";
+import { prisma } from "./prisma.js";
+import { readToken } from "./lib/auth.js";
 import { spotsRouter } from "./routes/spots.js";
 import { authRouter } from "./routes/auth.js";
 import { conciergeRouter } from "./routes/concierge.js";
+import { lockersRouter } from "./routes/lockers.js";
+import { photosRouter } from "./routes/photos.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(express.json());
+app.set("trust proxy", 1);
+app.use(express.json({ limit: "6mb" }));
 app.use(cookieParser());
 app.use(
   cors({
@@ -21,6 +26,25 @@ app.use(
   })
 );
 
+fs.mkdirSync(env.uploadDir, { recursive: true });
+app.get("/media/:fileName", async (req, res) => {
+  const fileName = path.basename(req.params.fileName);
+  if (fileName !== req.params.fileName || !/^[a-f0-9-]+\.(?:jpg|png|webp)$/i.test(fileName)) {
+    return res.status(404).end();
+  }
+  const photo = await prisma.spotPhoto.findFirst({
+    where: { imageUrl: { endsWith: `/media/${fileName}` } },
+  });
+  if (!photo) return res.status(404).end();
+
+  const auth = readToken(req);
+  const isPublic = photo.visibility === "public" && photo.status === "approved";
+  if (!isPublic && photo.userId !== auth?.userId) return res.status(404).end();
+
+  res.setHeader("Cache-Control", isPublic && env.isProd ? "public, max-age=604800, immutable" : "private, no-store");
+  res.sendFile(path.join(env.uploadDir, fileName));
+});
+
 // ---- API ----
 const api = express.Router();
 api.get("/health", (_req, res) =>
@@ -28,6 +52,8 @@ api.get("/health", (_req, res) =>
 );
 api.use("/auth", authRouter);
 api.use("/concierge", conciergeRouter);
+api.use("/", photosRouter);
+api.use("/", lockersRouter);
 api.use("/", spotsRouter);
 app.use("/api", api);
 

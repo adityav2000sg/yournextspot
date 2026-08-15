@@ -1,17 +1,19 @@
-import type { Prisma, Review, Spot } from "@prisma/client";
+import type { Prisma, Review, Spot, SpotPhoto } from "@prisma/client";
 import { scoreToTier } from "./tiers.js";
 
 export type SpotWithReviews = Prisma.SpotGetPayload<{ include: { reviews: true } }>;
+export type SpotWithReviewsAndPhotos = Prisma.SpotGetPayload<{ include: { reviews: true; photos: true } }>;
 
 function aggregate(reviews: Review[]) {
-  if (reviews.length === 0) {
+  const publicReviews = reviews.filter((review) => !review.isSeed);
+  if (publicReviews.length === 0) {
     return { reviewCount: 0, avgScore: null as number | null, communityTier: null };
   }
   const avg =
-    reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length;
+    publicReviews.reduce((sum, r) => sum + r.score, 0) / publicReviews.length;
   const rounded = Math.round(avg * 10) / 10;
   return {
-    reviewCount: reviews.length,
+    reviewCount: publicReviews.length,
     avgScore: rounded,
     communityTier: scoreToTier(rounded),
   };
@@ -37,21 +39,32 @@ export function serializeSpotSummary(spot: SpotWithReviews, saved = false) {
     notes: spot.notes,
     wishlist: spot.wishlist,
     needsReview: spot.needsReview,
+    coverImageUrl: spot.coverImageUrl,
     saved,
     ...agg,
   };
 }
 
 export function serializeSpotDetail(
-  spot: SpotWithReviews,
+  spot: SpotWithReviewsAndPhotos,
   currentUserId: string | null,
   saved = false
 ) {
   const summary = serializeSpotSummary(spot, saved);
   const reviews = [...spot.reviews]
+    .filter((review) => !review.isSeed)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .map((r) => serializeReview(r, currentUserId));
-  return { ...summary, reviews };
+  const photos = spot.photos.map((photo: SpotPhoto) => ({
+    id: photo.id,
+    imageUrl: photo.imageUrl,
+    caption: photo.caption,
+    visibility: photo.visibility,
+    status: photo.status,
+    createdAt: photo.createdAt.toISOString(),
+    mine: currentUserId != null && photo.userId === currentUserId,
+  }));
+  return { ...summary, reviews, photos };
 }
 
 export function serializeReview(review: Review, currentUserId: string | null) {

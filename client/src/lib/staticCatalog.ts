@@ -132,7 +132,23 @@ export function staticRandom(q: SpotQuery = {}) {
   return ranked.slice(0, Math.min(8, ranked.length))[Math.floor(Math.random() * Math.min(4, ranked.length))].spot;
 }
 
-export function staticConcierge(prompt: string): ConciergeResponse {
+type StaticIntent = {
+  coffee: boolean;
+  bar: boolean;
+  eat: boolean;
+  date: boolean;
+  cheap: boolean;
+  fancy: boolean;
+  novelty: boolean;
+  cozy: boolean;
+  work: boolean;
+  openNow: boolean;
+};
+
+export function staticConcierge(
+  prompt: string,
+  excludeSlugs: string[] = []
+): ConciergeResponse {
   const text = prompt.toLowerCase();
 
   if (isLowIntentPrompt(text)) {
@@ -151,28 +167,128 @@ export function staticConcierge(prompt: string): ConciergeResponse {
     };
   }
 
+  const intent = parseStaticIntent(text);
+  const excluded = new Set(excludeSlugs);
+  const area =
+    staticAreas().find((candidate) => text.includes(candidate.toLowerCase())) ??
+    (/\b(east coast|east side)\b/.test(text) ? "Katong" : undefined);
+  const categoryIntent = intent.coffee
+    ? "coffee"
+    : intent.bar
+      ? "bar"
+      : intent.eat
+        ? "restaurant"
+        : null;
+
   const scored = staticSpots
     .map((spot) => {
-      let score = spot.ownerScore ?? 6;
-      if (text.includes("coffee") || text.includes("laptop") || text.includes("cafe")) score += spot.category === "coffee" ? 3 : 0;
-      if (text.includes("drink") || text.includes("cocktail") || text.includes("bar")) score += spot.category === "bar" ? 3 : 0;
-      if (text.includes("dinner") || text.includes("lunch") || text.includes("date")) score += spot.category === "restaurant" ? 2 : 0;
-      if (text.includes("cheap") || text.includes("casual")) score += spot.price === "$" || spot.price === "$$" ? 1.5 : 0;
-      if (text.includes("client") || text.includes("celebrat")) score += spot.ownerTier === "landmark_celebration" || spot.ownerTier === "crown_jewel" ? 2 : 0;
+      let score = spot.wishlist ? 1.2 : 2;
+
+      if (categoryIntent) {
+        score += spot.category === categoryIntent ? 10 : -12;
+      }
+      if (intent.date) {
+        score += tierWeight(spot.ownerTier, {
+          memorable_occasion: 5,
+          thoughtful_treat: 3.5,
+          landmark_celebration: 1.5,
+          crown_jewel: 0.5,
+          everyday_delight: -0.5,
+        });
+      }
+      if (intent.coffee && intent.date && spot.ownerTier === "thoughtful_treat") {
+        score += 3;
+      }
+      if (intent.fancy) {
+        score += tierWeight(spot.ownerTier, {
+          crown_jewel: 5,
+          landmark_celebration: 4.5,
+          memorable_occasion: 2.5,
+          thoughtful_treat: 0.5,
+          everyday_delight: -2,
+        });
+      }
+      if (intent.cheap) {
+        score += spot.price === "$" ? 5 : spot.price === "$$" ? 3 : -3;
+      }
+      if (intent.novelty) score += spot.wishlist ? 6 : -0.5;
+      if (intent.cozy && spot.ownerTier === "thoughtful_treat") score += 1.5;
+      if (intent.work && spot.ownerTier === "everyday_delight") score += 1.5;
+      if (area) score += spot.area === area ? 7 : -1;
+      if (spot.cuisine && text.includes(spot.cuisine.toLowerCase())) score += 5;
+      if (text.includes(spot.name.toLowerCase())) score += 8;
+      if (spot.needsReview) score -= 1;
+      if (excluded.has(spot.slug)) score -= 30;
+
+      // Stable prompt-specific variation means a genuinely new request can
+      // reshape the shortlist without random results jumping on every render.
+      score += stableNoise(`${text}:${spot.slug}`) * 1.4;
       return { spot, score };
     })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+    .sort((a, b) => b.score - a.score);
+
+  const selected = selectDiversePicks(scored, Boolean(categoryIntent), 3);
 
   return {
-    mood: buildStaticMood(text),
-    picks: scored.map(({ spot }) => ({
+    mood: buildStaticMood(intent, area),
+    picks: selected.map(({ spot }) => ({
       slug: spot.slug,
-      reason: staticReason(spot, text),
+      reason: staticReason(spot, intent, area),
     })),
-    spots: scored.map(({ spot }) => spot),
-    source: "local",
+    spots: selected.map(({ spot }) => spot),
+    source: "offline",
   };
+}
+
+function parseStaticIntent(text: string): StaticIntent {
+  return {
+    coffee: /\b(coffee|cafe|café|espresso|latte|matcha)\b/.test(text),
+    bar: /\b(drinks?|cocktails?|bars?|wine|beer|night ?cap|whisky)\b/.test(text),
+    eat: /\b(eat|food|dinner|lunch|brunch|breakfast|hungry|meal|pasta|steak)\b/.test(text),
+    date: /\b(date|girlfriend|boyfriend|partner|romantic|anniversary)\b/.test(text),
+    cheap: /\b(cheap|budget|affordable|value|casual|inexpensive|under \$?\d+)\b/.test(text) || /don'?t want to spend|not spend(?:ing)? (?:too |a )?lot/.test(text),
+    fancy: /\b(client|impress|fancy|splurge|celebrat\w*|birthday|promotion|special)\b/.test(text),
+    novelty: /\b(new|different|else|surprise|truly new|haven'?t|never been|try|explore|adventur\w*)\b/.test(text),
+    cozy: /\b(cozy|cosy|quiet|chill|relax\w*|intimate|calm|not too loud)\b/.test(text),
+    work: /\b(laptop|work|study|meeting)\b/.test(text),
+    openNow: /\b(open now|open at|still open|opening hours?)\b/.test(text),
+  };
+}
+
+function tierWeight(tier: Tier | null, weights: Partial<Record<Tier, number>>) {
+  return tier ? weights[tier] ?? 0 : 0;
+}
+
+function stableNoise(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return ((hash >>> 0) % 1000) / 1000;
+}
+
+function selectDiversePicks(
+  scored: { spot: Spot; score: number }[],
+  hasCategoryIntent: boolean,
+  limit: number
+) {
+  if (hasCategoryIntent) return scored.slice(0, limit);
+
+  const selected: typeof scored = [];
+  const categories = new Set<Category>();
+  for (const candidate of scored) {
+    if (categories.has(candidate.spot.category)) continue;
+    selected.push(candidate);
+    categories.add(candidate.spot.category);
+    if (selected.length === limit) return selected;
+  }
+  for (const candidate of scored) {
+    if (selected.includes(candidate)) continue;
+    selected.push(candidate);
+    if (selected.length === limit) break;
+  }
+  return selected;
 }
 
 function isLowIntentPrompt(text: string) {
@@ -181,30 +297,44 @@ function isLowIntentPrompt(text: string) {
   return words.length === 0 || (words.length <= 2 && words.every((word) => lowIntent.has(word)));
 }
 
-function buildStaticMood(text: string) {
-  if (text.includes("client")) return "For a client, I would keep it polished, calm, and high-confidence.";
-  if (text.includes("date")) return "For a date, I would pick somewhere warm, memorable, and not too loud.";
-  if (text.includes("coffee") || text.includes("laptop")) return "For coffee, I would bias toward calmer spots that are easy to settle into.";
-  if (text.includes("drink") || text.includes("bar") || text.includes("cocktail")) return "For drinks, I would pick places with stronger evening energy.";
-  if (text.includes("cheap") || text.includes("budget")) return "For budget, I would keep this easy, casual, and still worth the trip.";
-  return "Here are three clean picks from your atlas for this vibe.";
+function buildStaticMood(intent: StaticIntent, area?: string) {
+  const where = area ? ` around ${area}` : "";
+  if (intent.openNow) return `These fit the brief${where}; live opening data is not connected yet, so confirm hours before leaving.`;
+  if (intent.coffee && intent.date) return `Coffee with someone you like calls for a place with a little character${where}.`;
+  if (intent.fancy) return `Keep it polished, calm, and high-confidence${where}.`;
+  if (intent.date) return `Choose somewhere warm and memorable, without making the plan feel overdone${where}.`;
+  if (intent.coffee && intent.work) return `A calmer coffee spot where settling in for a while feels natural${where}.`;
+  if (intent.coffee) return `Three coffee stops worth making the plan around${where}.`;
+  if (intent.bar) return `Three places with the right energy for a proper drink${where}.`;
+  if (intent.cheap) return `Keep it easy on the wallet without turning dinner into a compromise${where}.`;
+  if (intent.novelty) return `Three genuinely different directions from the places you have already seen${where}.`;
+  return `Three distinct ways to make the plan work${where}.`;
 }
 
-function staticReason(spot: Spot, text: string) {
-  if (text.includes("client") && (spot.ownerTier === "landmark_celebration" || spot.ownerTier === "crown_jewel")) {
+function staticReason(spot: Spot, intent: StaticIntent, area?: string) {
+  if (intent.fancy && (spot.ownerTier === "landmark_celebration" || spot.ownerTier === "crown_jewel")) {
     return "High-confidence room for making the plan feel considered.";
   }
-  if (text.includes("date") && spot.ownerTier === "memorable_occasion") {
+  if (intent.coffee && intent.date && spot.category === "coffee") {
+    return "A more considered coffee stop for an afternoon together.";
+  }
+  if (intent.date && spot.ownerTier === "memorable_occasion") {
     return "Special enough for a date without feeling overdone.";
   }
-  if ((text.includes("coffee") || text.includes("laptop")) && spot.category === "coffee") {
-    return "Fits a coffee-first plan and keeps the decision simple.";
+  if (intent.coffee && spot.category === "coffee") {
+    return intent.work
+      ? "Coffee-first and better suited to staying for more than one cup."
+      : "A coffee-first choice with enough character to feel intentional.";
   }
-  if ((text.includes("drink") || text.includes("bar") || text.includes("cocktail")) && spot.category === "bar") {
+  if (intent.bar && spot.category === "bar") {
     return "Better aligned with an after-dinner drinks plan.";
   }
-  if ((text.includes("cheap") || text.includes("budget")) && (spot.price === "$" || spot.price === "$$")) {
+  if (intent.cheap && (spot.price === "$" || spot.price === "$$")) {
     return "Keeps the spend sensible without turning into a compromise.";
   }
+  if (intent.novelty && spot.wishlist) {
+    return `A fresh direction from the to-try list${spot.area ? ` in ${spot.area}` : ""}.`;
+  }
+  if (area && spot.area === area) return `A strong match without pulling you away from ${area}.`;
   return spot.ownerVerdict ?? ([spot.cuisine, spot.area].filter(Boolean).join(" · ") || "A strong fit from the atlas.");
 }

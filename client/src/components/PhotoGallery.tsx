@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import type { SpotPhoto } from "../types";
+import ReportButton from "./ReportButton";
+import BlockButton from "./BlockButton";
 
 interface Props {
   slug: string;
@@ -9,6 +11,7 @@ interface Props {
   signedIn: boolean;
   onSignIn: () => void;
   onChange: (photos: SpotPhoto[]) => void;
+  onBlocked: (userId: string) => void;
 }
 
 async function prepareImage(file: File) {
@@ -40,7 +43,7 @@ async function prepareImage(file: File) {
   return { imageBase64: dataUrl.split(",")[1], mimeType, preview: dataUrl };
 }
 
-export default function PhotoGallery({ slug, coverImageUrl, photos, signedIn, onSignIn, onChange }: Props) {
+export default function PhotoGallery({ slug, coverImageUrl, photos, signedIn, onSignIn, onChange, onBlocked }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [prepared, setPrepared] = useState<{ imageBase64: string; mimeType: "image/jpeg"; preview: string } | null>(null);
   const [caption, setCaption] = useState("");
@@ -136,6 +139,12 @@ export default function PhotoGallery({ slug, coverImageUrl, photos, signedIn, on
               )}
               {photo.mine && (
                 <button type="button" disabled={busy} onClick={() => void remove(photo)} className="photo-remove" aria-label="Delete your photo">×</button>
+              )}
+              {!photo.mine && !photo.id.startsWith("cover-") && (
+                <div className="absolute bottom-2 right-2 flex gap-2 rounded-full bg-ink-950/85 px-2.5 py-1 backdrop-blur">
+                  <ReportButton targetType="photo" targetId={photo.id} signedIn={signedIn} onSignIn={onSignIn} className="text-mist-300" />
+                  {signedIn && photo.authorId && <BlockButton userId={photo.authorId} onBlocked={onBlocked} />}
+                </div>
               )}
             </figure>
           ))}

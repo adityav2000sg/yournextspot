@@ -57,6 +57,7 @@ model Spot {
   lockerSpots   LockerSpot[]
   visitEntries  VisitEntry[]
   photos        SpotPhoto[]
+  reports       ContentReport[]
 
   @@index([category])
   @@index([area])
@@ -73,6 +74,9 @@ model User {
   lockers     Locker[]
   visitEntries VisitEntry[]
   photos      SpotPhoto[]
+  contentReports ContentReport[]
+  blocksMade     BlockedUser[] @relation("Blocker")
+  blocksReceived BlockedUser[] @relation("Blocked")
 }
 
 model Review {
@@ -88,6 +92,7 @@ model Review {
   wouldReturn Boolean  @default(true)
   isSeed      Boolean  @default(false)
   createdAt   DateTime @default(now())
+  reports     ContentReport[]
 
   @@index([spotId])
   @@unique([spotId, userId])
@@ -174,7 +179,41 @@ model SpotPhoto {
   visibility PhotoVisibility @default(private)
   status     PhotoStatus     @default(approved)
   createdAt  DateTime        @default(now())
+  reports    ContentReport[]
 
   @@index([spotId, visibility, status])
   @@index([userId])
+}
+
+model ContentReport {
+  id         String    @id @default(cuid())
+  reporter   User      @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId String
+  review     Review?   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  reviewId   String?
+  photo      SpotPhoto? @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photoId    String?
+  spot       Spot?     @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  spotId     String?
+  reason     String
+  details    String?
+  status     String    @default("open")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([reporterId])
+  @@index([reviewId, status])
+  @@index([photoId, status])
+  @@index([spotId, status])
+}
+
+model BlockedUser {
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockerId String
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  blockedId String
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
 }

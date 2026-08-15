@@ -11,3 +11,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+if (
+  import.meta.env.PROD &&
+  window.location.protocol.startsWith("http") &&
+  "serviceWorker" in navigator
+) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js");
+  });
+}

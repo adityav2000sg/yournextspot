@@ -25,9 +25,9 @@ export default {
         leaf: "#88d66c",
       },
       fontFamily: {
-        sans: ["Geist", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["Geist Mono", "ui-monospace", "monospace"],
-        display: ["Fraunces", "ui-serif", "Georgia", "serif"],
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        display: ["Open Sans", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       keyframes: {
         aurora: {

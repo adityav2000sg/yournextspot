@@ -12,6 +12,7 @@ import { authRouter } from "./routes/auth.js";
 import { conciergeRouter } from "./routes/concierge.js";
 import { lockersRouter } from "./routes/lockers.js";
 import { photosRouter } from "./routes/photos.js";
+import { reportsRouter } from "./routes/reports.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -52,6 +53,7 @@ api.get("/health", (_req, res) =>
 );
 api.use("/auth", authRouter);
 api.use("/concierge", conciergeRouter);
+api.use("/", reportsRouter);
 api.use("/", photosRouter);
 api.use("/", lockersRouter);
 api.use("/", spotsRouter);

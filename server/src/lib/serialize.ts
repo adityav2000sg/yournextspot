@@ -63,6 +63,7 @@ export function serializeSpotDetail(
     status: photo.status,
     createdAt: photo.createdAt.toISOString(),
     mine: currentUserId != null && photo.userId === currentUserId,
+    authorId: photo.userId,
   }));
   return { ...summary, reviews, photos };
 }
@@ -78,6 +79,7 @@ export function serializeReview(review: Review, currentUserId: string | null) {
     isSeed: review.isSeed,
     createdAt: review.createdAt.toISOString(),
     mine: currentUserId != null && review.userId === currentUserId,
+    authorId: review.userId,
   };
 }
 

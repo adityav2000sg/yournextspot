@@ -59,6 +59,7 @@ function serializePhoto(photo: {
     status: photo.status,
     createdAt: photo.createdAt.toISOString(),
     mine: photo.userId === userId,
+    authorId: photo.userId,
   };
 }
 

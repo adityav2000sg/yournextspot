@@ -29,6 +29,12 @@ export function PrivacyPage() {
       <p>
         Authentication uses an HTTP-only session cookie. Email codes may be sent through Resend when configured; in development they can be shown in the login flow for local testing.
       </p>
+      <p>
+        Voice input starts only after you tap the microphone. Your device or browser speech service turns your speech into text; YourNextSpot uses the resulting transcript to find places and does not intentionally store an audio recording.
+      </p>
+      <p>
+        Public contributions can be reported by signed-in members for safety review. Reports store the reporting account, the content being reported, and the selected reason. When you block a member, YourNextSpot stores that block and hides their reviews and photos from your experience.
+      </p>
       <p>Deleting your account removes your reviews, uploaded photos, saves, lockers, and private visit history.</p>
     </Shell>
   );
@@ -42,6 +48,9 @@ export function TermsPage() {
       </p>
       <p>
         Do not use the service to publish unlawful, abusive or misleading content. Account deletion is available from Profile.
+      </p>
+      <p>
+        Public reviews and photos can be reported. We may restrict or remove content or accounts that are abusive, unsafe, deceptive, infringing, or unrelated to the place.
       </p>
       <p>
         Upload only photos you took or have permission to share. By choosing public, you allow YourNextSpot to display that photo with the place listing until you delete it or make it private.
@@ -62,6 +71,9 @@ export function ContactPage() {
       </p>
       <p>
         Include the place name, what is wrong, and a source if you have one. Your private Locker notes are not needed for catalogue corrections.
+      </p>
+      <p>
+        For abusive reviews or photos, use the Report control on that item so it reaches the moderation queue with the correct content attached. If anyone is in immediate danger, contact the appropriate local emergency service.
       </p>
     </Shell>
   );

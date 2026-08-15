@@ -17,12 +17,20 @@
     "db:migrate": "npm run db:migrate -w server",
     "db:push": "npm run db:push -w server",
     "db:seed": "npm run db:seed -w server",
+    "mobile:sync": "npm run build -w client && cap sync ios",
+    "mobile:open": "cap open ios",
     "postinstall": "npm run db:generate -w server || true"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.8",
     "concurrently": "^9.1.0"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@capacitor-community/speech-recognition": "^7.0.1",
+    "@capacitor/core": "^7.6.8",
+    "@capacitor/ios": "^7.6.8"
   }
 }

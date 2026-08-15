@@ -19,6 +19,16 @@ export interface Review {
   mine?: boolean;
 }
 
+export interface SpotPhoto {
+  id: string;
+  imageUrl: string;
+  caption: string | null;
+  visibility: "public" | "private";
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  mine?: boolean;
+}
+
 export interface Spot {
   id: string;
   slug: string;
@@ -37,17 +47,54 @@ export interface Spot {
   notes: string | null;
   wishlist: boolean;
   needsReview: boolean;
+  coverImageUrl: string | null;
   saved?: boolean;
   reviewCount: number;
   avgScore: number | null;
   communityTier: Tier | null;
   reviews?: Review[];
+  photos?: SpotPhoto[];
 }
 
 export interface Me {
   id: string;
   email: string;
   displayName: string | null;
+}
+
+export interface VisitEntry {
+  id: string;
+  spotId: string;
+  visitDate: string;
+  rating: number;
+  note: string | null;
+  favoriteItem: string | null;
+  companion: string | null;
+  wouldReturn: boolean;
+  createdAt: string;
+  updatedAt: string;
+  spot?: Pick<Spot, "id" | "slug" | "name" | "area" | "cuisine" | "price">;
+}
+
+export interface LockerSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  itemCount: number;
+  visitedCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LockerItem {
+  id: string;
+  createdAt: string;
+  spot: Spot;
+  visits: VisitEntry[];
+}
+
+export interface LockerDetail extends LockerSummary {
+  items: LockerItem[];
 }
 
 export interface ConciergePick {

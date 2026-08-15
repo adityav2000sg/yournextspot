@@ -1,20 +1,29 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Review, Tier } from "../types";
 import { TIER_ORDER, TIERS } from "../lib/tiers";
 import { api } from "../api";
 
 interface Props {
   slug: string;
+  existingReview?: Review;
   onAdded: (review: Review) => void;
 }
 
-export default function ReviewForm({ slug, onAdded }: Props) {
-  const [score, setScore] = useState(8);
-  const [tier, setTier] = useState<Tier>("thoughtful_treat");
-  const [verdict, setVerdict] = useState("");
-  const [wouldReturn, setWouldReturn] = useState(true);
+export default function ReviewForm({ slug, existingReview, onAdded }: Props) {
+  const [score, setScore] = useState(existingReview?.score ?? 8);
+  const [tier, setTier] = useState<Tier>(existingReview?.tier ?? "thoughtful_treat");
+  const [verdict, setVerdict] = useState(existingReview?.verdict ?? "");
+  const [wouldReturn, setWouldReturn] = useState(existingReview?.wouldReturn ?? true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!existingReview) return;
+    setScore(existingReview.score);
+    setTier(existingReview.tier);
+    setVerdict(existingReview.verdict);
+    setWouldReturn(existingReview.wouldReturn);
+  }, [existingReview]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,7 +37,6 @@ export default function ReviewForm({ slug, onAdded }: Props) {
         wouldReturn,
       });
       onAdded(review);
-      setVerdict("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save review.");
     } finally {
@@ -38,7 +46,11 @@ export default function ReviewForm({ slug, onAdded }: Props) {
 
   return (
     <form onSubmit={submit} className="space-y-5 rounded-2xl glass p-6">
-      <h3 className="font-display text-xl text-mist-100">Add your verdict</h3>
+      <div>
+        <p className="eyebrow">Public</p>
+        <h3 className="mt-1 font-display text-2xl text-mist-100">{existingReview ? "Edit your review" : "Share your review"}</h3>
+        <p className="mt-2 text-sm leading-6 text-mist-400">Everyone can read this. Your private visit notes live separately in your food log.</p>
+      </div>
 
       <div>
         <label className="mb-2 flex items-center justify-between text-sm text-mist-300">
@@ -64,6 +76,7 @@ export default function ReviewForm({ slug, onAdded }: Props) {
               type="button"
               key={t}
               onClick={() => setTier(t)}
+              aria-pressed={tier === t}
               className={`chip transition ${
                 tier === t
                   ? "text-ink-900"
@@ -112,7 +125,7 @@ export default function ReviewForm({ slug, onAdded }: Props) {
         disabled={loading}
         className="btn w-full bg-mist-100 text-ink-900 hover:bg-white"
       >
-        {loading ? "Saving…" : "Post review"}
+        {loading ? "Saving…" : existingReview ? "Update public review" : "Post public review"}
       </button>
     </form>
   );

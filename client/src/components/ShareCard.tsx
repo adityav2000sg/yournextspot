@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import type { Spot } from "../types";
 import { CATEGORY_META, tierMeta } from "../lib/tiers";
@@ -10,11 +10,21 @@ interface Props {
 
 export default function ShareCard({ spot, onClose }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const tier = tierMeta(spot.ownerTier ?? spot.communityTier);
-  const score = spot.ownerScore ?? spot.avgScore;
-  const verdict = spot.ownerVerdict ?? spot.reviews?.find((r) => r.verdict)?.verdict;
+  const score = spot.reviewCount > 0 ? spot.avgScore : null;
+  const verdict = spot.reviews?.find((review) => !review.isSeed && review.verdict)?.verdict;
   const cat = CATEGORY_META[spot.category];
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [onClose]);
 
   async function download() {
     if (!cardRef.current) return;
@@ -37,6 +47,9 @@ export default function ShareCard({ spot, onClose }: Props) {
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-ink-900/80 p-4 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Share ${spot.name}`}
     >
       <div
         className="flex w-full max-w-md flex-col items-center gap-5"
@@ -108,7 +121,7 @@ export default function ShareCard({ spot, onClose }: Props) {
           >
             {busy ? "Rendering…" : "Download card ↓"}
           </button>
-          <button onClick={onClose} className="btn-ghost">
+          <button ref={closeRef} onClick={onClose} className="btn-ghost">
             close
           </button>
         </div>
